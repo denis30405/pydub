@@ -1,0 +1,69 @@
+from pydub import AudioSegment
+from pydub.generators import Sine, WhiteNoise
+import os
+
+# -----------------------------
+# 1. Шлях для файлів (папка Download)
+# -----------------------------
+download_path = "/storage/emulated/0/Download"
+mp3_file = os.path.join(download_path, "metro_81-718_2min_stereo.mp3")
+
+# -----------------------------
+# 2. Параметри
+# -----------------------------
+duration_ms = 120000  # 2 хвилини
+tunnel_gain = -30
+engine_gain = -10
+brake_gain = -5
+
+# -----------------------------
+# 3. Шум тунелю (фон)
+# -----------------------------
+tunnel_noise = WhiteNoise().to_audio_segment(duration=duration_ms).apply_gain(tunnel_gain)
+tunnel_noise = tunnel_noise.set_channels(2)  # стерео
+
+# -----------------------------
+# 4. Розгін з панорамуванням
+# -----------------------------
+engine_sound = AudioSegment.silent(duration=0)
+pan = -0.5
+for freq in range(100, 400, 2):
+    tone = Sine(freq).to_audio_segment(duration=100).apply_gain(engine_gain)
+    engine_sound += tone.pan(pan)
+    pan += 0.01
+engine_sound = engine_sound[:30000]
+
+# -----------------------------
+# 5. Рух по тунелю (стики рейок) з панорамуванням
+# -----------------------------
+rails_sound = AudioSegment.silent(duration=0)
+pan = 0.5
+for _ in range(70):
+    tone = Sine(150).to_audio_segment(duration=150).apply_gain(-25)
+    rails_sound += tone.pan(pan)
+    pan -= 0.02
+rails_sound = (rails_sound * 2)[:50000]
+
+# -----------------------------
+# 6. Гальмування з панорамуванням
+# -----------------------------
+brake_sound = AudioSegment.silent(duration=0)
+pan = -0.3
+for freq in range(400, 50, -5):
+    tone = Sine(freq).to_audio_segment(duration=100).apply_gain(brake_gain)
+    brake_sound += tone.pan(pan)
+    pan += 0.01
+brake_sound = brake_sound[:15000]
+
+# -----------------------------
+# 7. Склеюємо всі шари
+# -----------------------------
+final_sound = tunnel_noise.overlay(engine_sound, position=20000)
+final_sound = final_sound.overlay(rails_sound, position=50000)
+final_sound = final_sound.overlay(brake_sound, position=105000)
+
+# -----------------------------
+# 8. Експорт у mp3 без ffmpeg
+# -----------------------------
+final_sound.export(mp3_file, format="mp3", bitrate="192k")
+print(f".mp3 файл створено: {mp3_file}")
